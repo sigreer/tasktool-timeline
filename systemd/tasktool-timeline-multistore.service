@@ -1,0 +1,20 @@
+[Unit]
+Description=tasktool-timeline live server for the multistore project
+Documentation=https://github.com/sigreer/tasktool-timeline
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/Dev/sigreer/skills/tasktool-timeline/server.py \
+    --repo %h/Dev/sigreer/multistore \
+    --host 127.0.0.1 --port 8787 \
+    --interval 3600 --refresh 900
+Restart=on-failure
+RestartSec=10
+# Minimal footprint: the process idles between requests and only regenerates
+# the timeline at most once per --interval when the page is actually viewed.
+Nice=10
+MemoryMax=256M
+
+[Install]
+WantedBy=default.target

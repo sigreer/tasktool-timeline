@@ -1,0 +1,10 @@
+[project]
+name = "tasktool-timeline"
+version = "1.0.0"
+description = "Self-contained HTML work-history timeline generator for tasktool projects"
+requires-python = ">=3.10"
+# Zero runtime dependencies — Python 3 stdlib + git only.
+
+[tool.pytest.ini_options]
+testpaths = ["timeline/tests"]
+pythonpath = ["."]

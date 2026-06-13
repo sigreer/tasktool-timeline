@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+# generated output
+*.html
+!timeline/tests/**/*.html
