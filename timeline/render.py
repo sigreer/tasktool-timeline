@@ -281,6 +281,47 @@ def _fmt(dv):
     return dv.when.strftime("%-d %b %Y")
 
 
+def _human(n):
+    """Compact magnitude: 942 -> '942', 3210 -> '3.2k', 1_500_000 -> '1.5M'."""
+    n = int(round(abs(n)))
+    if n < 1000:
+        return str(n)
+    if n < 1_000_000:
+        v = n / 1000.0
+        return f"{v:.1f}k" if v < 10 else f"{v:.0f}k"
+    v = n / 1_000_000.0
+    return f"{v:.1f}M" if v < 10 else f"{v:.0f}M"
+
+
+def _commas(n):
+    return f"{int(n):,}"
+
+
+def _plural(n, word):
+    return f"{_commas(n)} {word}" + ("" if int(n) == 1 else "s")
+
+
+def _mag_span(st):
+    """Always-visible compact effort badge for a card (scale at a glance)."""
+    full = (f"{_plural(st.commits, 'commit')} · +{_commas(st.added)} / "
+            f"−{_commas(st.removed)} lines · {_plural(st.files, 'file')}")
+    short = f"{_plural(st.commits, 'commit')} · {_human(st.lines)}"
+    return f'<span class="mag" title="{full}">{short}</span>'
+
+
+def _stats_detail(st):
+    """Full effort breakdown for the expandable card detail panel."""
+    return (f'<div class="stat-line">\U0001F4E6 {_plural(st.commits, "commit")}'
+            f' · +{_commas(st.added)} / −{_commas(st.removed)} lines'
+            f' · {_plural(st.files, "file")}</div>')
+
+
+def _band_stats(st):
+    """Phase-level rollup shown centred on the finish band."""
+    return (f'<span class="pb-stats">{_plural(st.commits, "commit")} · '
+            f'{_human(st.lines)} lines · {_plural(st.files, "file")}</span>')
+
+
 def _eff_end(dv):
     """Interval-effective instant for a date value used as an END/close boundary.
 
@@ -297,7 +338,8 @@ def _eff_end(dv):
     return dv.when
 
 
-def render_html(project, items, *, generated, show_x=False):
+def render_html(project, items, *, generated, show_x=False, stats=None):
+    stats = stats or {}
     vis = visible_items(items)
     phases = [i for i in vis if i.kind == "phase"]
     slices = [i for i in vis if i.kind == "slice"]
@@ -518,7 +560,8 @@ def render_html(project, items, *, generated, show_x=False):
                                     _color(e.key)))
         elif e.kind == "ring":
             parts.append(_ring_html(e.item, ta, td,
-                                    strand_off(lane_of[e.key])))
+                                    strand_off(lane_of[e.key]),
+                                    stats=stats.get(e.key)))
         elif e.kind == "open":
             parts.append(
                 f'<div class="open-label" data-key="{_html.escape(e.key)}" '
@@ -531,7 +574,8 @@ def render_html(project, items, *, generated, show_x=False):
                 css = "slice-card"
             else:
                 color, off, css = SLATE, 0, "slice-card x-node"
-            parts.append(_card(e.item, ta, td, e.side, color, off, css=css))
+            parts.append(_card(e.item, ta, td, e.side, color, off, css=css,
+                               stats=stats.get(e.item.key)))
 
     legend = "".join(
         f'<span class="chip"><i style="background:{_color(p.key)}"></i>'
@@ -562,15 +606,17 @@ def _overlap_keys(spans):
     return out
 
 
-def _band(p, td, pos, color, cls, icon, status=""):
+def _band(p, td, pos, color, cls, icon, status="", stats_html=""):
     """Full-width phase band: icon + phase number on the left, title + icon on
     the right. Used for both phase start (node) and phase finish (ring) so each
-    consumes the full row width symmetrically."""
+    consumes the full row width symmetrically. The finish band carries the
+    phase's rolled-up effort stats centred between the two."""
     key = _html.escape(p.key)
     num = f'{icon} <b>{key}</b>' + (f' {status}' if status else "")
     return (f'<div class="phase-band {cls}" data-key="{key}" '
             f'style="top:{td}px;color:#fff;background:{color}" {pos}>'
             f'<span class="pb-num">{num}</span>'
+            f'{stats_html}'
             f'<span class="pb-title">{_html.escape(p.label())} {icon}</span></div>')
 
 
@@ -583,12 +629,13 @@ def _node_html(p, ta, td, off, color):
             f'{pos}></div>')
 
 
-def _ring_html(p, ta, td, off):
+def _ring_html(p, ta, td, off, stats=None):
     ring = "#9aa0a6" if p.status == "cancelled" else _color(p.key)
     status = "cancelled" if p.status == "cancelled" else "complete"
     key = _html.escape(p.key)
     pos = f'data-ta="{ta}" data-td="{td}"'
-    return (_band(p, td, pos, ring, "finish", "\U0001F3C1", status) +
+    band_stats = _band_stats(stats) if stats else ""
+    return (_band(p, td, pos, ring, "finish", "\U0001F3C1", status, band_stats) +
             f'<div class="phase-ring" data-key="{key}" '
             f'style="top:{td}px;margin-left:{off:.0f}px;border-color:{ring}" '
             f'{pos}></div>')
@@ -614,13 +661,16 @@ def _duration_text(started, closed):
     return f" · {hours}h {minutes:02d}m"
 
 
-def _card(item, ta, td, side, color, off, css):
+def _card(item, ta, td, side, color, off, css, stats=None):
     started_clause = (f'started {_fmt(item.started)} · '
                       if item.started.when else "")
+    stat_detail = _stats_detail(stats) if stats else ""
     detail = (f'<div class="detail">{_html.escape(item.key)} · '
               f'{_html.escape(item.title)}<br>'
               f'{started_clause}closed {_fmt(item.closed)}'
-              f'{_duration_text(item.started, item.closed)}</div>')
+              f'{_duration_text(item.started, item.closed)}'
+              f'{stat_detail}</div>')
+    mag = (" " + _mag_span(stats)) if stats else ""
     dot_css = "dot x-node" if "x-node" in css else "dot"
     conn_css = "connector x-node" if "x-node" in css else "connector"
     key = _html.escape(item.key)
@@ -632,7 +682,7 @@ def _card(item, ta, td, side, color, off, css):
             f'onclick="this.classList.toggle(\'open\')" '
             f'style="top:{td}px;border-color:{color};background:{color}" '
             f'{pos}>'
-            f'<b>{key}</b> {_html.escape(item.label())}{detail}</div>'
+            f'<b>{key}</b>{mag} {_html.escape(item.label())}{detail}</div>'
             f'<div class="{dot_css} {side}-dot" data-key="{key}" '
             f'style="top:{td}px;margin-left:{off:.0f}px;background:{color}" '
             f'{pos}></div>')
@@ -695,6 +745,11 @@ header .meta{{font-size:12px;color:#888}}
 .detail{{display:none;margin-top:6px;padding-top:6px;
   border-top:1px solid rgba(0,0,0,.1);font-size:11px;color:#666}}
 .slice-card.open .detail{{display:block}}
+.mag{{font-weight:600;font-size:11px;opacity:.82;white-space:nowrap}}
+.slice-card:hover .mag,.slice-card.open .mag{{color:#555;opacity:1}}
+.stat-line{{margin-top:5px;font-weight:600;color:#444}}
+.pb-stats{{font-size:12px;font-weight:700;white-space:nowrap;opacity:.92;
+  z-index:1;padding:0 8px}}
 .x-node{{display:none}}
 body.show-x .x-node{{display:block}}
 body.show-x .dot.x-node{{display:block}}

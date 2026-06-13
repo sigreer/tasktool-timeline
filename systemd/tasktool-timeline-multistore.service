@@ -14,7 +14,8 @@ RestartSec=10
 # Minimal footprint: the process idles between requests and only regenerates
 # the timeline at most once per --interval when the page is actually viewed.
 Nice=10
-MemoryMax=256M
+# Headroom for the periodic `git log --numstat` pass over a large history.
+MemoryMax=512M
 
 [Install]
 WantedBy=default.target

@@ -6,6 +6,10 @@ JSON blocks, and the git history of `docs/tasklist.json`, then renders a single
 self-contained HTML page — phases, slices and cross-cutting items laid out on a
 proportional time axis with duration cards, lanes, and quiet-gap compression.
 
+Each item also carries **effort/magnitude stats** — number of commits, lines
+changed, and files touched — so a non-technical reader can gauge the scale of work
+behind each slice and phase at a glance (see [Effort stats](#effort-stats)).
+
 Originally built as **X29** inside the `superstar` skills repo; extracted here as a
 standalone project. Python 3 stdlib + `git` only — **zero third-party dependencies**.
 
@@ -77,6 +81,30 @@ journalctl --user -u tasktool-timeline-multistore.service -f
 To survive logout (run even when you're not logged in): `loginctl enable-linger $USER`.
 
 The unit caps memory at 256M and runs niced; the process idles between requests.
+
+## Effort stats
+
+Every slice/cross-cutting card shows an always-visible **magnitude badge**
+(`47 commits · 3.2k`) and, when expanded, a full breakdown
+(`📦 47 commits · +2,910 / −300 lines · 28 files`). Every completed **phase band**
+shows the rolled-up total across all its slices.
+
+How attribution works (`timeline/stats.py`):
+
+- Each commit is attributed to the item key(s) named in its **subject** — the
+  `P25`, `P25.S2`, `X72` convention that tasktool projects follow almost
+  universally (≈93% of multistore commits). A slice commit counts toward the
+  slice; a phase's band sums its slices (de-duplicated) plus any phase-level
+  commits.
+- **Line counts exclude machine-generated churn** so the numbers reflect authored
+  effort: lock files, `node_modules`/`dist`/`build` output, minified bundles,
+  snapshots, and the tracker's own `docs/tasklist.json` / `archived-tasks`
+  bookkeeping are filtered out; binary files (which git can't line-count) are
+  skipped. Merge commits are excluded from the commit count.
+
+Stats are on by default. Pass `--no-stats` to `timeline.py` (or `generate.sh`) to
+omit them. Computing them is a single `git log --numstat` pass — ~2s over the
+1,800-commit multistore history, run at most once per hour by the server.
 
 ## backfill.py
 

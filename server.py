@@ -28,7 +28,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # make `timeline` importable
-from timeline import extract, model, render  # noqa: E402
+from timeline import extract, model, render, stats as stats_mod  # noqa: E402
 
 
 def build_html(repo: str, show_x: bool, overrides: str | None) -> tuple[str, list[str]]:
@@ -60,8 +60,11 @@ def build_html(repo: str, show_x: bool, overrides: str | None) -> tuple[str, lis
     elif overrides:
         raise SystemExit(f"overrides file not found: {ov_path}")
 
+    item_stats = stats_mod.build_index(root, items)
+
     project = live.get("project") or root.name
-    result = render.render_html(project, items, generated=dt.datetime.now(), show_x=show_x)
+    result = render.render_html(project, items, generated=dt.datetime.now(),
+                                show_x=show_x, stats=item_stats)
     if result.unplaced:
         warnings.append(f"{len(result.unplaced)} item(s) omitted (no resolvable dates): "
                         + ", ".join(sorted(result.unplaced)))

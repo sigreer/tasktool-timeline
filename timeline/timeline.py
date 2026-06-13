@@ -17,9 +17,9 @@ from pathlib import Path
 
 if __package__ in (None, ""):  # support `python3 tools/timeline/timeline.py`
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/
-    from timeline import extract, model, render
+    from timeline import extract, model, render, stats as stats_mod
 else:
-    from . import extract, model, render
+    from . import extract, model, render, stats as stats_mod
 
 
 def main(argv=None):
@@ -30,6 +30,8 @@ def main(argv=None):
                     help="start with cross-cutting items visible")
     ap.add_argument("--overrides", default=None,
                     help="overrides JSON (default: <repo>/docs/timeline-overrides.json)")
+    ap.add_argument("--no-stats", action="store_true",
+                    help="omit per-item commit/line/file effort stats")
     args = ap.parse_args(argv)
 
     root = extract.repo_root(args.repo)
@@ -56,9 +58,12 @@ def main(argv=None):
     elif args.overrides:
         raise SystemExit(f"timeline: overrides file not found: {ov_path}")
 
+    item_stats = {} if args.no_stats else stats_mod.build_index(root, items)
+
     project = live.get("project") or root.name
     result = render.render_html(project, items,
-                                generated=dt.datetime.now(), show_x=args.show_x)
+                                generated=dt.datetime.now(), show_x=args.show_x,
+                                stats=item_stats)
     Path(args.output).write_text(result.html)
 
     for warning in warnings:
