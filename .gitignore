@@ -4,3 +4,4 @@ __pycache__/
 # generated output
 *.html
 !timeline/tests/**/*.html
+.worktrees/
